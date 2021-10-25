@@ -1,0 +1,11 @@
+venv/
+.env
+node_modules/
+.pytest_cache/
+uploads/
+*.pyc
+app.db
+.DS_Store
+.idea
+*.swp
+tags
