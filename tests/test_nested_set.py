@@ -1,3 +1,5 @@
+from collections import namedtuple
+
 import pytest
 from nested_sets import NestedSet, print_tree
 from sqlalchemy import Column, String, create_engine
@@ -32,29 +34,35 @@ def session(engine):
     return sessionmaker(bind=engine)()
 
 
-Node = namedtuple("Node", ["title", "children"])
+Node = namedtuple("Node", ["title", "children"], defaults=(None, None))
+
+
+def generate_node(model):
+    return Node(
+        title=model.title,
+        children=tuple(generate_node(child) for child in model.children)
+        if model.children
+        else None,
+    )
+
+
+def model_to_tree(model):
+    model.generate_tree()
+    return generate_node(model)
 
 
 @pytest.fixture
-def base_tree(session):
-    albert = MyModel(title="Albert")
-    bert = MyModel(title="Bert", parent=albert)
-    chuck = MyModel(title="Chuck", parent=albert)
-    donna = MyModel(title="Donna", parent=chuck)
-    eddie = MyModel(title="Eddie", parent=chuck)
-    fred = MyModel(title="Fred", parent=chuck)
-
-    session.add_all([albert, bert, chuck, donna, eddie, fred])
-    session.commit()
-
-    return {
-        "albert": albert,
-        "bert": bert,
-        "chuck": chuck,
-        "donna": donna,
-        "eddie": eddie,
-        "fred": fred,
-    }
+def output_tree():
+    return Node(
+        title="Albert",
+        children=(
+            Node(title="Bert"),
+            Node(
+                title="Chuck",
+                children=(Node(title="Donna"), Node(title="Eddie"), Node(title="Fred")),
+            ),
+        ),
+    )
 
 
 def test_multiple_tree_initiation(session):
@@ -69,7 +77,7 @@ def test_multiple_tree_initiation(session):
         print(line)
 
 
-def test_single_tree(session):
+def test_single_tree(session, output_tree):
     albert = MyModel(title="Albert")
     bert = MyModel(title="Bert", parent=albert)
     chuck = MyModel(title="Chuck", parent=albert)
@@ -79,14 +87,8 @@ def test_single_tree(session):
 
     session.add_all([albert, bert, chuck, donna, eddie, fred])
     session.commit()
-    assert bert in albert.descendants
-    assert chuck in albert.descendants
-    assert donna in chuck.descendants
-    assert eddie in chuck.descendants
-    assert fred in chuck.descendants
-    print()
-    for line in print_tree(session, MyModel):
-        print(line)
+    tree = model_to_tree(albert)
+    assert output_tree == tree
 
 
 def test_move_before(session):

@@ -1,20 +1,11 @@
 import logging
-from sqlalchemy import case, and_
-from sqlalchemy import Column
-from sqlalchemy import event
-from sqlalchemy import Integer
+from collections import deque
+
+from sqlalchemy import (Column, Integer, and_, asc, case, desc, event, func,
+                        select)
 from sqlalchemy.ext.hybrid import hybrid_method
-from sqlalchemy.orm.collections import collection
-from sqlalchemy.orm import (
-    object_session,
-    aliased,
-    relationship,
-    foreign,
-    remote,
-    declared_attr,
-    declarative_mixin,
-)
-from sqlalchemy import select, func, asc, desc
+from sqlalchemy.orm import (aliased, declarative_mixin, declared_attr, foreign,
+                            object_session, relationship, remote)
 
 
 @declarative_mixin
@@ -24,6 +15,7 @@ class NestedSet:
 
     left = Column("lft", Integer, nullable=False)
     right = Column("rgt", Integer, nullable=False)
+    _children = None
 
     @declared_attr
     def descendants(cls):
@@ -51,13 +43,9 @@ class NestedSet:
 
     @property
     def children(self):
-        last_right = 0
-        result = []
-        for node in self.descendants:
-            if node.left > last_right:
-                result.append(node)
-                last_right = node.right
-        return result
+        if self._children:
+            return tuple(self._children)
+        return None
 
     @classmethod
     def __declare_first__(cls):
@@ -146,21 +134,20 @@ class NestedSet:
         query = query.filter(table.is_ancestor_of(self, inclusive=True))
         return self._base_order(query, order=order)
 
-    def drilldown_tree(self):
+    def generate_tree(self):
 
-        tree = {"node": self, "children": []}
+        tree = self
+        tree._children = deque()
         stack = [tree]
         for node in self.descendants:
             parent = stack.pop()
-            while node.left > parent["node"].right:
+            while node.left > parent.right:
                 parent = stack.pop()
 
-            n = {"node": node, "children": []}
-            parent["children"].append(n)
+            node._children = deque()
+            parent._children.append(node)
             stack.append(parent)
-            stack.append(n)
-
-        return tree
+            stack.append(node)
 
     def _move_outside(self):
         table = self.__table__
