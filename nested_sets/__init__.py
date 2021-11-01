@@ -8,8 +8,21 @@ from sqlalchemy.orm import (aliased, declarative_mixin, declared_attr, foreign,
                             object_session, relationship, remote)
 
 
+class NestedSetException(Exception):
+    """NestedSetException."""
+
+    pass
+
+
+class NestedSetMovementNotAllowed(NestedSetException):
+    """NestedSetMovementNotAllowed."""
+
+    pass
+
+
 @declarative_mixin
 class NestedSet:
+    """NestedSet is a mixin class used for nested set presentation."""
 
     parent = None
 
@@ -19,6 +32,10 @@ class NestedSet:
 
     @declared_attr
     def descendants(cls):
+        """All descendants of node ordered from left to right.
+
+        :param cls:
+        """
         return relationship(
             cls,
             primaryjoin=and_(
@@ -31,6 +48,10 @@ class NestedSet:
 
     @declared_attr
     def ancestors(cls):
+        """All ancestors of node ordered from top to bottom.
+
+        :param cls:
+        """
         return relationship(
             cls,
             primaryjoin=and_(
@@ -43,31 +64,41 @@ class NestedSet:
 
     @property
     def children(self):
+        """Node children. Avaialbe after generate tree is called."""
         if self._children:
             return tuple(self._children)
         return None
 
     @classmethod
     def __declare_first__(cls):
+        """__declare_first__."""
         cls.__mapper__.batch = False
 
     @classmethod
     def get_primary_key_name(cls):
+        """Override this method to your model primary key name. Default is id."""
         return "id"
 
     @classmethod
     def get_primary_key_column(cls):
+        """get_primary_key_column."""
         return getattr(cls, cls.get_primary_key_name())
 
     @property
     def primary_key(self):
+        """primary_key."""
         return getattr(self, self.get_primary_key_name())
 
     @primary_key.setter
     def primary_key(self, val):
+        """primary_key.
+
+        :param val:
+        """
         setattr(self, self.get_primary_key_name(), val)
 
     def __repr__(self):
+        """__repr__."""
         return "NestedSet(%s, %d, %d)" % (
             self.primary_key,
             self.left,
@@ -75,6 +106,7 @@ class NestedSet:
         )
 
     def get_ancestors(self):
+        """get_ancestors."""
         session = object_session(self)
         ealias = aliased(self.__class__)
         return (
@@ -85,6 +117,7 @@ class NestedSet:
         )
 
     def decendents_query(self):
+        """decendents_query."""
         session = object_session(self)
 
         return (
@@ -94,48 +127,29 @@ class NestedSet:
         )
 
     @hybrid_method
-    def is_ancestor_of(self, other, inclusive=False):
-        """class or instance level method which returns True if self is
-        ancestor (closer to root) of other else False. Optional flag
-        `inclusive` on whether or not to treat self as ancestor of self.
-        For example see:
-        * :mod:`sqlalchemy_mptt.tests.cases.integrity.test_hierarchy_structure`
+    def is_ancestor_of(self, other, inclusive: bool = False):
+        """checks if node is ancestor of target node.
+
+        :param other: target node
+        :param inclusive: wheter should include itself
+        :type inclusive: bool
         """
         if inclusive:
             return (self.left <= other.left) & (other.right <= self.right)
         return (self.left < other.left) & (other.right < self.right)
 
     @hybrid_method
-    def is_descendant_of(self, other, inclusive=False):
-        """class or instance level method which returns True if self is
-        descendant (farther from root) of other else False.  Optional flag
-        `inclusive` on whether or not to treat self as descendant of self.
-        For example see:
-        * :mod:`sqlalchemy_mptt.tests.cases.integrity.test_hierarchy_structure`
+    def is_descendant_of(self, other, inclusive: bool = False):
+        """Checks if node is descendant of target node.
+
+        :param other: target node
+        :param inclusive: wheter should include itself
+        :type inclusive: bool
         """
         return other.is_ancestor_of(self, inclusive)
 
-    @classmethod
-    def _base_query(cls, session=None):
-        return session.query(cls)
-
-    def _base_query_obj(self, session=None):
-        if not session:
-            session = object_session(self)
-        return self._base_query(session)
-
-    @classmethod
-    def _base_order(cls, query, order=asc):
-        return query.order_by(order(cls.left))
-
-    def path_to_root(self, session=None, order=desc):
-        table = self.__class__
-        query = self._base_query_obj(session=session)
-        query = query.filter(table.is_ancestor_of(self, inclusive=True))
-        return self._base_order(query, order=order)
-
     def generate_tree(self):
-
+        """Generates tree out from node. All descendats get children property availalbe."""
         tree = self
         tree._children = deque()
         stack = [tree]
@@ -150,6 +164,7 @@ class NestedSet:
             stack.append(node)
 
     def _move_outside(self):
+        """_move_outside."""
         table = self.__table__
         session = object_session(self)
         session.execute(
@@ -162,6 +177,7 @@ class NestedSet:
         )
 
     def _shrink_space(self):
+        """_shrink_space."""
         table = self.__table__
         session = object_session(self)
         width = self.right - self.left + 1
@@ -181,8 +197,12 @@ class NestedSet:
         )
 
     def move_before(self, target):
+        """move_before.
+
+        :param target:
+        """
         if self.left <= target.left and self.right >= target.right:
-            raise Exception("Can't move before child node")
+            raise NestedSetMovementNotAllowed("Can't move before child node")
 
         session = object_session(self)
         # Move itself and children outside of tree
@@ -193,8 +213,12 @@ class NestedSet:
         move_node_before(self.__table__, session, self, target)
 
     def move_after(self, target):
+        """move_after.
+
+        :param target:
+        """
         if self.left <= target.left and self.right >= target.right:
-            raise Exception("Can't move after child node")
+            raise NestedSetMovementNotAllowed("Can't move after child node")
         # self.emp = self.emp
         session = object_session(self)
         # Move itself and children outside of tree
@@ -204,21 +228,36 @@ class NestedSet:
         move_node_after(self.__table__, session, self, target)
 
     def move_inside(self, target):
+        """move_inside.
+
+        :param target:
+        """
         if self.left <= target.left and self.right >= target.right:
-            raise Exception("Can't move inside child node")
+            raise NestedSetMovementNotAllowed("Can't move inside child node")
         session = object_session(self)
         self._move_outside()
         self._shrink_space()
         move_node_inside(self.__table__, session, self, target)
 
 
-def primary_key_match(table, instance):
+def _primary_key_match(table, instance):
+    """primary_key_match.
+
+    :param table:
+    :param instance:
+    """
     column = instance.get_primary_key_column()
     return getattr(table.c, column.name) == instance.primary_key
 
 
 @event.listens_for(NestedSet, "before_insert", propagate=True)
 def before_insert(mapper, connection, instance):
+    """before_insert.
+
+    :param mapper:
+    :param connection:
+    :param instance:
+    """
 
     nested_sets = mapper.persist_selectable
 
@@ -233,7 +272,7 @@ def before_insert(mapper, connection, instance):
     else:
         right_most_sibling = connection.scalar(
             select(nested_sets.c.rgt).where(
-                primary_key_match(nested_sets, instance.parent)
+                _primary_key_match(nested_sets, instance.parent)
             )
         )
 
@@ -244,8 +283,14 @@ def before_insert(mapper, connection, instance):
 
 @event.listens_for(NestedSet, "after_delete", propagate=True)
 def after_delete(mapper, connection, instance):
+    """after_delete.
+
+    :param mapper:
+    :param connection:
+    :param instance:
+    """
     nested_sets = mapper.persist_selectable
-    shrink_space(nested_sets, connection, instance)
+    instance._shrink_space()
     connection.execute(
         nested_sets.delete().where(
             and_(nested_sets.c.lft > instance.left, nested_sets.c.rgt < instance.right)
@@ -253,25 +298,15 @@ def after_delete(mapper, connection, instance):
     )
 
 
-def shrink_space(nested_sets, connection, instance):
-    width = instance.right - instance.left + 1
-    connection.execute(
-        nested_sets.update(and_(nested_sets.c.rgt > instance.right)).values(
-            lft=case(
-                [
-                    (
-                        nested_sets.c.lft > instance.right,
-                        nested_sets.c.lft - width,
-                    )
-                ],
-                else_=nested_sets.c.lft,
-            ),
-            rgt=nested_sets.c.rgt - width,
-        )
-    )
-
-
 def increase_space(nested_sets, connection, position, space, inclusive=True):
+    """increase_space.
+
+    :param nested_sets:
+    :param connection:
+    :param position:
+    :param space:
+    :param inclusive:
+    """
 
     comparason = (
         nested_sets.c.rgt >= position if inclusive else nested_sets.c.rgt > position
@@ -292,18 +327,13 @@ def increase_space(nested_sets, connection, position, space, inclusive=True):
     )
 
 
-def move_outside(nested_sets, connection, instance):
-    connection.execute(
-        nested_sets.update(
-            and_(
-                nested_sets.c.lft >= instance.left,
-                nested_sets.c.rgt <= instance.right,
-            )
-        ).values(lft=-nested_sets.c.lft, rgt=-nested_sets.c.rgt)
-    )
-
-
 def return_inside(nested_sets, connection, distance):
+    """return_inside.
+
+    :param nested_sets:
+    :param connection:
+    :param distance:
+    """
     connection.execute(
         nested_sets.update(and_(nested_sets.c.lft < 0)).values(
             lft=-nested_sets.c.lft - distance, rgt=-nested_sets.c.rgt - distance
@@ -312,9 +342,16 @@ def return_inside(nested_sets, connection, distance):
 
 
 def move_node_before(nested_sets, connection, instance, target):
+    """move_node_before.
+
+    :param nested_sets:
+    :param connection:
+    :param instance:
+    :param target:
+    """
     width = instance.right - instance.left + 1
     target_left = connection.scalar(
-        select(nested_sets.c.lft).where(primary_key_match(nested_sets, target))
+        select(nested_sets.c.lft).where(_primary_key_match(nested_sets, target))
     )
     increase_space(nested_sets, connection, target_left, width)
     distance = instance.left - target_left
@@ -323,9 +360,16 @@ def move_node_before(nested_sets, connection, instance, target):
 
 
 def move_node_after(nested_sets, connection, instance, target):
+    """move_node_after.
+
+    :param nested_sets:
+    :param connection:
+    :param instance:
+    :param target:
+    """
     width = instance.right - instance.left + 1
     target_right = connection.scalar(
-        select(nested_sets.c.rgt).where(primary_key_match(nested_sets, target))
+        select(nested_sets.c.rgt).where(_primary_key_match(nested_sets, target))
     )
     increase_space(nested_sets, connection, target_right, width, inclusive=False)
     distance = instance.left - target_right - 1
@@ -333,9 +377,16 @@ def move_node_after(nested_sets, connection, instance, target):
 
 
 def move_node_inside(nested_sets, connection, instance, target):
+    """move_node_inside.
+
+    :param nested_sets:
+    :param connection:
+    :param instance:
+    :param target:
+    """
     width = instance.right - instance.left + 1
     target_right = connection.scalar(
-        select(nested_sets.c.rgt).where(primary_key_match(nested_sets, target))
+        select(nested_sets.c.rgt).where(_primary_key_match(nested_sets, target))
     )
     increase_space(nested_sets, connection, target_right, width)
     distance = instance.left - target_right
@@ -344,6 +395,11 @@ def move_node_inside(nested_sets, connection, instance, target):
 
 
 def print_tree(session, model):
+    """print_tree.
+
+    :param session:
+    :param model:
+    """
     ealias = aliased(model)
     for indentation, employee in (
         session.query(

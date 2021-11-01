@@ -2,7 +2,7 @@ from collections import namedtuple
 
 import pytest
 from nested_sets import NestedSet, print_tree
-from sqlalchemy import Column, String, create_engine
+from sqlalchemy import Column, String, create_engine, select
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 Base = declarative_base()
@@ -51,6 +51,10 @@ def model_to_tree(model):
     return generate_node(model)
 
 
+def select_by_title(session, title):
+    return session.query(MyModel).where(MyModel.title == title).one()
+
+
 @pytest.fixture
 def output_tree():
     return Node(
@@ -65,19 +69,8 @@ def output_tree():
     )
 
 
-def test_multiple_tree_initiation(session):
-    node1 = MyModel(title="Node1")
-    node1_child = MyModel(title="Node1Child", parent=node1)
-    node2 = MyModel(title="Node2")
-    node3 = MyModel(title="Node3")
-    session.add_all([node1, node2, node3, node1_child])
-    session.commit()
-    print()
-    for line in print_tree(session, MyModel):
-        print(line)
-
-
-def test_single_tree(session, output_tree):
+@pytest.fixture
+def base_tree(session):
     albert = MyModel(title="Albert")
     bert = MyModel(title="Bert", parent=albert)
     chuck = MyModel(title="Chuck", parent=albert)
@@ -87,53 +80,34 @@ def test_single_tree(session, output_tree):
 
     session.add_all([albert, bert, chuck, donna, eddie, fred])
     session.commit()
-    tree = model_to_tree(albert)
-    assert output_tree == tree
+
+    return albert
 
 
-def test_move_before(session):
-    node1 = MyModel(title="Node1")
-    node1_child = MyModel(title="Node1Child", parent=node1)
-    node2 = MyModel(title="Node2")
-    node3 = MyModel(title="Node3")
-    session.add_all([node1, node2, node3, node1_child])
+def test_single_tree(session, base_tree, output_tree):
+    assert model_to_tree(base_tree) == output_tree
+
+
+def test_move_before(session, base_tree):
+    eddie = select_by_title(session, "Eddie")
+    donna = select_by_title(session, "Donna")
+    eddie.move_before(donna)
     session.commit()
-    node3.move_before(node1)
+    assert eddie.right + 1 == donna.left
+
+
+def test_move_after(session, base_tree):
+    eddie = select_by_title(session, "Eddie")
+    donna = select_by_title(session, "Donna")
+    donna.move_after(eddie)
     session.commit()
-    print()
-    for line in print_tree(session, MyModel):
-        print(line)
+    assert eddie.right + 1 == donna.left
 
 
-def test_tree(session):
-    root = MyModel(title="Root")
-    child_first = MyModel(title="First Child", parent=root)
-    child_second = MyModel(title="Second Child", parent=root)
-    print("Parent", child_second.parent)
-    session.add_all([root, child_first, child_second])
+def test_move_inside(session, base_tree):
+    eddie = select_by_title(session, "Eddie")
+    donna = select_by_title(session, "Donna")
+    donna.move_inside(eddie)
     session.commit()
-    print(root.descendants)
-    # child_first.parent = root
-    # child_second = MyModel(title="Second Child", parent=root)
-    # child_second.parent = root
-    # grand_child = MyModel(title="Grand Child", parent=root)
-    # grand_child.parent = child_second
-    # child_second.parent = root
-    # session.add_all([root, child_first, child_second, grand_child])
-    # session.add(child_first)
-    # session.add(child_second)
-
-    # session.commit()
-    # print("Descendants")
-    # for node in child_second.descendants:
-    #    print(node)
-
-    # print("Ancestors")
-    # for node in grand_child.ancestors:
-    #    print(node)
-
-    # for line in print_tree(session, MyModel):
-    #    print(line)
-    # print(root.drilldown_tree())
-    # for line in print_tree(session, MyModel):
-    #    print(line)
+    assert eddie.right == donna.right + 1
+    assert eddie.left == donna.left - 1
