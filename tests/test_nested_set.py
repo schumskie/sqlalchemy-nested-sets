@@ -1,9 +1,9 @@
 from collections import namedtuple
 
 import pytest
-from nested_sets import NestedSet, print_tree
-from sqlalchemy import Column, String, create_engine, select
+from sqlalchemy import Column, String, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
+from sqlalchemy_nested_sets import NestedSet
 
 Base = declarative_base()
 

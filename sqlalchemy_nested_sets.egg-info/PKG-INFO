@@ -1,0 +1,17 @@
+Metadata-Version: 2.1
+Name: sqlalchemy-nested-sets
+Version: 0.0.1
+Summary: Nested Sets implementation for SQLAlchemy
+Home-page: UNKNOWN
+Author: Stefan Jeremic
+License: UNKNOWN
+Platform: UNKNOWN
+Classifier: Programming Language :: Python :: 3
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Requires-Python: >=3.6
+Description-Content-Type: text/markdown
+
+# sqlalchemy-nested-sets
+
+

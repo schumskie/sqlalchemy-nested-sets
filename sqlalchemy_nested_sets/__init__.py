@@ -1,8 +1,8 @@
+"""sqlalchemy_nested_sets"""
 import logging
 from collections import deque
 
-from sqlalchemy import (Column, Integer, and_, asc, case, desc, event, func,
-                        select)
+from sqlalchemy import Column, Integer, and_, case, desc, event, func, select
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.orm import (aliased, declarative_mixin, declared_attr, foreign,
                             object_session, relationship, remote)
