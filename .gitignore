@@ -9,7 +9,6 @@ app.db
 .idea
 *.swp
 tags
-
 .Python
 build/
 develop-eggs/
