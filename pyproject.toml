@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0", "sqlalchemy"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name ="sqlalchemy_nested_sets_schumskie"
+version = "0.0.1"
+authors = [
+  { name="Stefan Jeremic", email="sjeremic91@gmail.com" },
+]
+description = "Nested sets implementation for sqlalchemy"
+readme = "README.md"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+
+[project.urls]
+"Homepage" = "https://github.com/schumskie/sqlalchemy-nested-sets"
+"Bug Tracker" = "https://github.com/schumskie/sqlalchemy-nested-sets/issues"
