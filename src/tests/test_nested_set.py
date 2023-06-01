@@ -2,8 +2,8 @@ from collections import namedtuple
 
 import pytest
 from sqlalchemy import Column, String, create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker
-from sqlalchemy_nested_sets import NestedSet
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from nested_sets import NestedSet
 
 Base = declarative_base()
 
@@ -25,13 +25,13 @@ def engine():
 
     _engine = create_engine("sqlite:///:memory:", echo=False)
     Base.metadata.create_all(_engine)
-    yield _engine
-    _engine.dispose()
+    return _engine
 
 
 @pytest.fixture
 def session(engine):
-    return sessionmaker(bind=engine)()
+    with Session(engine) as session:
+        yield session
 
 
 Node = namedtuple("Node", ["title", "children"], defaults=(None, None))

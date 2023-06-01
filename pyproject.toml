@@ -1,9 +1,6 @@
-[build-system]
-requires = ["setuptools>=61.0", "sqlalchemy"]
-build-backend = "setuptools.build_meta"
 
 [project]
-name ="sqlalchemy_nested_sets_schumskie"
+name ="nested_sets_schumskie"
 version = "0.0.1"
 authors = [
   { name="Stefan Jeremic", email="sjeremic91@gmail.com" },

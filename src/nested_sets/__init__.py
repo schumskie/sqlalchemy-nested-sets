@@ -2,7 +2,7 @@
 import logging
 from collections import deque
 
-from sqlalchemy import Column, Integer, and_, case, desc, event, func, select
+from sqlalchemy import Column, Integer, and_, case, desc, event, func, select, Table
 from sqlalchemy.ext.hybrid import hybrid_method
 from sqlalchemy.orm import (aliased, declarative_mixin, declared_attr, foreign,
                             object_session, relationship, remote)
@@ -168,7 +168,7 @@ class NestedSet:
         table = self.__table__
         session = object_session(self)
         session.execute(
-            table.update(
+            table.update().where(
                 and_(
                     table.c.lft >= self.left,
                     table.c.rgt <= self.right,
@@ -182,14 +182,14 @@ class NestedSet:
         session = object_session(self)
         width = self.right - self.left + 1
         session.execute(
-            table.update(and_(table.c.rgt > self.right)).values(
+            table.update().where(and_(table.c.rgt > self.right)).values(
                 lft=case(
-                    [
+
                         (
                             table.c.lft > self.right,
                             table.c.lft - width,
                         )
-                    ],
+                    ,
                     else_=table.c.lft,
                 ),
                 rgt=table.c.rgt - width,
@@ -298,7 +298,7 @@ def after_delete(mapper, connection, instance):
     )
 
 
-def increase_space(nested_sets, connection, position, space, inclusive=True):
+def increase_space(nested_sets: Table, connection, position, space, inclusive=True):
     """increase_space.
 
     :param nested_sets:
@@ -312,14 +312,9 @@ def increase_space(nested_sets, connection, position, space, inclusive=True):
         nested_sets.c.rgt >= position if inclusive else nested_sets.c.rgt > position
     )
     connection.execute(
-        nested_sets.update(comparason).values(
+        nested_sets.update().where(comparason).values(
             lft=case(
-                [
-                    (
-                        nested_sets.c.lft >= position,
-                        nested_sets.c.lft + space,
-                    )
-                ],
+                (nested_sets.c.lft >= position, nested_sets.c.lft + space),
                 else_=nested_sets.c.lft,
             ),
             rgt=nested_sets.c.rgt + space,
@@ -335,7 +330,7 @@ def return_inside(nested_sets, connection, distance):
     :param distance:
     """
     connection.execute(
-        nested_sets.update(and_(nested_sets.c.lft < 0)).values(
+        nested_sets.update().where(and_(nested_sets.c.lft < 0)).values(
             lft=-nested_sets.c.lft - distance, rgt=-nested_sets.c.rgt - distance
         )
     )
