@@ -1,69 +1,20 @@
-from collections import namedtuple
-
 import pytest
-from sqlalchemy import Column, String, create_engine
-from sqlalchemy.orm import declarative_base, sessionmaker, Session
-from nested_sets import NestedSet
-
-Base = declarative_base()
-
-
-class MyModel(Base, NestedSet):
-    __tablename__ = "mymodel"
-    title = Column(String, primary_key=True)
-
-    @classmethod
-    def get_primary_key_name(cls):
-        return "title"
-
-    def __repr__(self):
-        return f"<TestModel(title={self.title} l={self.left} r={self.right})>"
-
-
-@pytest.fixture
-def engine():
-
-    _engine = create_engine("sqlite:///:memory:", echo=False)
-    Base.metadata.create_all(_engine)
-    return _engine
-
-
-@pytest.fixture
-def session(engine):
-    with Session(engine) as session:
-        yield session
-
-
-Node = namedtuple("Node", ["title", "children"], defaults=(None, None))
-
-
-def generate_node(model):
-    return Node(
-        title=model.title,
-        children=tuple(generate_node(child) for child in model.children)
-        if model.children
-        else None,
-    )
-
-
-def model_to_tree(model):
-    model.generate_tree()
-    return generate_node(model)
+from tests.node import Node, model_to_tree, NodeTuple
 
 
 def select_by_title(session, title):
-    return session.query(MyModel).where(MyModel.title == title).one()
+    return session.query(Node).where(Node.title == title).one()
 
 
 @pytest.fixture
 def output_tree():
-    return Node(
+    return NodeTuple(
         title="Albert",
         children=(
-            Node(title="Bert"),
-            Node(
+            NodeTuple(title="Bert"),
+            NodeTuple(
                 title="Chuck",
-                children=(Node(title="Donna"), Node(title="Eddie"), Node(title="Fred")),
+                children=(NodeTuple(title="Donna"), NodeTuple(title="Eddie"), NodeTuple(title="Fred")),
             ),
         ),
     )
@@ -71,12 +22,12 @@ def output_tree():
 
 @pytest.fixture
 def base_tree(session):
-    albert = MyModel(title="Albert")
-    bert = MyModel(title="Bert", parent=albert)
-    chuck = MyModel(title="Chuck", parent=albert)
-    donna = MyModel(title="Donna", parent=chuck)
-    eddie = MyModel(title="Eddie", parent=chuck)
-    fred = MyModel(title="Fred", parent=chuck)
+    albert = Node(title="Albert")
+    bert = Node(title="Bert", parent=albert)
+    chuck = Node(title="Chuck", parent=albert)
+    donna = Node(title="Donna", parent=chuck)
+    eddie = Node(title="Eddie", parent=chuck)
+    fred = Node(title="Fred", parent=chuck)
 
     session.add_all([albert, bert, chuck, donna, eddie, fred])
     session.commit()
